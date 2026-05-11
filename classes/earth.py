@@ -11,7 +11,6 @@ class Earth:
             self.map = pygame.image.load("imgs/mapa_mundi.jpg").convert()
             self.map = pygame.transform.scale(self.map, (self.radius * 4, self.radius * 2))
         except Exception as e:
-            print(f"Erro ao carregar imagem: {e}") # Isso te ajuda a ver o erro real no console
             self.map = pygame.Surface((self.radius * 4, self.radius * 2))
             self.map.fill((30,144,255))
             pygame.draw.rect(self.map, (34, 139, 34), (50,50,100,100))
