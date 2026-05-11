@@ -1,6 +1,7 @@
 # Earth Simulator
 
-A small Pygame project that renders a rotating Earth against a static star field.
+A small Pygame project that renders a rotating Earth against a twinkling star
+field.
 
 The simulation uses a flat world map image as a texture, scrolls that texture
 horizontally, and clips the result with a circular alpha mask so the visible
@@ -412,7 +413,7 @@ This means 200 stars are generated inside the screen area.
 Each star stores:
 
 ```text
-[x, y, shine, size]
+[x, y, shine, size, offset, pulse_velocity]
 ```
 
 ### Star Position
@@ -443,28 +444,144 @@ y ~ UniformInteger(0, 920)
 
 ### Star Brightness
 
-Brightness is also random:
+Each star starts with a random base brightness:
 
 ```python
 shine = rd.randint(150, 255)
 ```
 
-The star color is:
+The star also receives two values used to animate its brightness:
 
 ```python
-(shine, shine, shine)
+offset = rd.uniform(0, 2 * math.pi)
+pulse_velocity = rd.uniform(0.01, 0.1)
 ```
 
-Because the red, green, and blue channels are equal, every star is grayscale.
+`offset` is the star's current position inside a sine wave. It starts randomly
+between `0` and `2pi`, so the stars do not all pulse at the same moment.
+
+`pulse_velocity` controls how fast that star moves through the sine wave. Since
+each star receives its own random velocity, some stars twinkle slowly and others
+twinkle faster.
 
 Mathematically:
 
 ```text
-R = G = B = shine
 shine ~ UniformInteger(150, 255)
+offset ~ UniformReal(0, 2pi)
+pulse_velocity ~ UniformReal(0.01, 0.1)
 ```
 
-This produces stars from medium gray to pure white.
+During every draw call, the code advances the sine-wave position:
+
+```python
+star[4] += star[5]
+```
+
+In math form:
+
+```text
+offset_next = offset_current + pulse_velocity
+```
+
+Then it calculates the pulse:
+
+```python
+oscilation = math.sin(star[4]) * 50
+```
+
+In math form:
+
+```text
+oscillation = sin(offset) * 50
+```
+
+The sine function always returns a value between `-1` and `1`:
+
+```text
+-1 <= sin(offset) <= 1
+```
+
+Multiplying by `50` gives the brightness pulse range:
+
+```text
+-50 <= oscillation <= 50
+```
+
+So each star's brightness moves up and down by as much as 50 RGB units around
+its base `shine` value.
+
+The current brightness is calculated with:
+
+```python
+current_shine = max(50, min(255, star[2] + oscilation))
+```
+
+In math form:
+
+```text
+current_shine = clamp(shine + sin(offset) * 50, 50, 255)
+```
+
+Where:
+
+```text
+clamp(value, 50, 255) = max(50, min(255, value))
+```
+
+The clamp keeps the final brightness inside the visible RGB range used by the
+simulation:
+
+```text
+50 <= current_shine <= 255
+```
+
+Without the clamp, a bright star with `shine = 255` could pulse up to:
+
+```text
+255 + 50 = 305
+```
+
+But RGB channels cannot go above `255`, so the value is limited to `255`.
+
+The final star color is:
+
+```python
+color = (current_shine, current_shine, current_shine)
+```
+
+Because the red, green, and blue channels are equal, every star remains
+grayscale. It changes brightness, but it does not change color.
+
+In RGB color, each channel can usually range from `0` to `255`:
+
+```text
+0   = no light in that channel
+255 = maximum light in that channel
+```
+
+The perceived brightness ratio can be written as:
+
+```text
+brightness = current_shine / 255
+```
+
+Examples:
+
+```text
+current_shine = 50  -> brightness = 50 / 255  = 0.196 -> about 19.6%
+current_shine = 150 -> brightness = 150 / 255 = 0.588 -> about 58.8%
+current_shine = 255 -> brightness = 255 / 255 = 1.000 -> 100%
+```
+
+So the updated star effect is a sine-wave twinkle:
+
+```text
+brightness over time = base shine + smooth wave motion
+```
+
+The random `offset` spreads stars across different moments in the wave, and the
+random `pulse_velocity` makes stars pulse at different speeds.
 
 ### Star Size
 
@@ -558,7 +675,8 @@ missing or unreadable.
   use it.
 - `Earth.center` is stored but not used.
 - `imgs/mapa_mundi.avif` exists but is not used.
-- The star field is static. Stars do not move or twinkle after creation.
+- Star positions are static, but star brightness twinkles over time with a sine
+  wave.
 - The Earth effect is a 2D texture scroll clipped to a circle, not a true 3D
   sphere projection.
 - The map scroll speed is frame-dependent because the code does not use
@@ -577,7 +695,9 @@ missing or unreadable.
 | Cycle length | `(4r) / rotation_v` | `1200 frames` |
 | Circle mask | `(x - r)^2 + (y - r)^2 <= r^2` | `(x - 150)^2 + (y - 150)^2 <= 22500` |
 | Star position | `x ~ U(0, W), y ~ U(0, H)` | `x ~ U(0,1080), y ~ U(0,920)` |
-| Star brightness | `R = G = B = shine` | `shine ~ U(150,255)` |
+| Star brightness | `current_shine = clamp(shine + sin(offset) * 50, 50, 255)` | `shine ~ U(150,255)` |
+| Star pulse phase | `offset_next = offset + pulse_velocity` | `offset ~ U(0,2pi)` |
+| Star pulse speed | random real velocity | `pulse_velocity ~ U(0.01,0.1)` |
 | Star size | weighted random choice | `P(1)=2/3, P(2)=1/3` |
 
 ## Possible Improvements
@@ -589,5 +709,5 @@ missing or unreadable.
 - Keep screen size in one shared config value so `main.py`, `Stars`, and
   `Earth` cannot drift apart.
 - Add a lighting/shadow overlay to make the Earth feel more spherical.
-- Add star twinkling by varying brightness over time.
+- Tune star twinkling by changing the sine amplitude or pulse velocity range.
 - Remove unused files or connect them to the running code.
