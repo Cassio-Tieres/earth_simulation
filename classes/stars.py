@@ -1,5 +1,6 @@
 import pygame
 import random as rd
+import math
 
 class Stars:
     def __init__(self, quantity, screen_size):
@@ -13,9 +14,16 @@ class Stars:
             shine = rd.randint(150, 255)
             size = rd.choice([1,1,2])
 
-            self.star_list.append([x,y,shine,size])
+            # define shines
+            offset = rd.uniform(0, 2 * math.pi)
+            pulse_velocity = rd.uniform(0.01, 0.1)
+
+            self.star_list.append([x,y,shine,size,offset,pulse_velocity])
 
     def draw(self, screen):
         for star in self.star_list:
-            x,y,shine,size = star
-            pygame.draw.circle(screen, (shine, shine, shine), (x,y), size)
+            star[4] += star[5]
+            oscilation = math.sin(star[4]) * 50
+            current_shine = max(50, min(255, star[2] + oscilation))
+            color = (current_shine, current_shine, current_shine)
+            pygame.draw.circle(screen, color, (star[0], star[1]), star[3])
